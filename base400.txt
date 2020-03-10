@@ -1,0 +1,880 @@
+!*Go,:JUMP
+
+finish
+/CLEAR,all
+
+/title, 2D COBALT TEC PCM
+
+!*****THIS MODEL HAS BEEN RESCALED USING BASE LENGTH UNIT OF UM  *********
+
+/PREP7
+
+!MODEL PARAM
+
+
+PCM=5                   !0=Substrate, 1=Field's Metal, 2 - PT58, 3 - Indialloy 136. 4 - PT29.  5 - Ga
+end_time = 10e-3
+htc=100 !W/m2-K
+scl=1e6 !length scale factor
+pscl=1e6 !length scale factor for properties
+
+end_time_over=1   !override end time using calculated exhaustion time
+end_time_fac = 20 !calc saftey margin factor to get steady state
+trilinear = 0 !use trilinear enthalpy vs tanh
+tanh_pts = 24 !number of MPDATA pnts interpolate within tanh
+
+!baseline parameters
+
+w_t = scl*30e-8 	!width of couple (doesnt include igzo film)
+j0 = 400e6/(pscl*pscl)	!junction terminus current density
+L= scl*1e-5	!length of distributed junction 
+
+
+phi_over = 0	!override resistance minimizing fill factor
+phi = 0.85	!fill factor to use when overriding
+
+w_f = 10e-9*scl	!thickness of variable res oxide film
+w_ox = 10e-9*scl	!thickness of hard oxide (SiN?)
+
+!auxiliary parameters
+grade_pnts = 1500  !number of gradations in variable res oxide i.e. unique mats
+L_cj = scl*10e-8	 !length of coldside junction
+L_standoff = w_t*3	!length of standoff of distributed junction off of oxide
+t_spreader = scl*10e-8	!thickness of underside spreader layer  (Cu?)
+w_ctc=50e-9*scl		!width of cold junction contact material
+Rad_cj=1e-8*scl		!radius of cold junction entry
+Rad_cu=L_cj/2		!maximum radius of cu contact pad
+t_cu1=1e-8*scl		!cu contact min thickness at junctions
+t_cu2=1e-8*scl		!cu contact min thicknees at oxide
+
+BTOL,(Rad_cj<w_ox)/100
+
+!Mesh Parameters
+int_lsize = 4    !number of elements across thickness of interface
+leg_lsize = 8    !lesizing of outer leg lines base on (w_Ga<w_Co)/par
+numel_ctc = 24   !number of elements at contact face
+space_ctc = -5   !growth ratios for contact face
+ang_div   = 24	 !number of elements we want around 180 deg of cj edge term
+sub_esize = 10e-6
+sub_tsize = 2*sub_esize
+
+
+!MATERIALS .................................................................................
+et,1,PLANE223,110,  !Thermal Electric physics
+et,2,PLANE77,	!thermal only
+
+k_igzo = 1/pscl !W/m-K  !2013 Yoshikawa
+dens_igzo = 6000/((pscl)**3) !kg/m3 yosh
+cp_igzo = 426 !J/kg-K  yosh
+res_igzo_high = 50*pscl !ogm-m Yosh
+res_igzo_low = 5e-4*pscl  !ohm-m yosh
+S_igzo = 0
+
+
+res_Ga = 25e-6/100*pscl !ohm-m
+S_Ga = -0.4e-6	!V/K
+
+
+k_cu = 401/pscl
+cp_cu = 24.440/63.546*1000
+dens_cu = 8960/((pscl)**3)
+S_cu = 17.7e-6
+res_cu = 1.72e-8*pscl !ohm-m
+
+k_GaAs = 55/pscl
+cp_GaAs = 330
+dens_GaAs = 5316/((pscl)**3)
+S_GaAs = 150e-6			!p doped 1e19 ish /cm3 https://link.springer.com/chapter/10.1007/10832182_207
+res_GaAs = 1.56e-5*pscl !ohm-m	!based on rho=1/(e*mobility*conc) with 1e19 conc and hole mobility 400 cm2/V-s
+
+k_Co = 100/pscl !W/m-K
+cp_Co = 418.7 !J/kg-K
+dens_Co = 8.86e3/((pscl)**3) !kg/m3
+S_Co = -30e-6 !V/K
+res_Co = 6e-8*pscl !ohm-m
+
+!Silicon Nitride?
+k_sin = 30/pscl
+cp_sin = 630
+dens_sin = 3290/((pscl)**3)
+res_sin = 1e10*pscl !ohm-m
+S_sin = 0  !?
+
+!fictitious contact material
+k_ctc=50
+cp_ctc=1
+dens_ctc=100
+res_ctc=6e-8
+S_ctc=(S_Ga+S_Co)/2
+
+
+*if,PCM,EQ,1,THEN
+  !PCM: Field's metal
+  PCM_text='Fields_Metal'
+  PCM_Melt_Temp   = 59    !C
+  PCM_latent_heat = 29140 !J/kg VALUE INCORRECT, USING APPROX
+  PCM_s_k         = 18.9  !W/m-K
+  PCM_s_cp        = 300   !J/kg-K
+  PCM_s_dens      = 7900  !kg/m^3
+  PCM_l_k         = 18.5  !W/m-K
+  PCM_l_cp        = 250   !J/kg-K
+  PCM_l_dens      = 7700  !kg/m^3
+  PCM_Mushy_Zone  = 2     !Delta T, C over which phase changes
+*elseif,PCM,EQ,2,THEN
+  !PCM: PT58
+  PCM_text='PT58'
+  PCM_Melt_Temp   = 58        !C
+  PCM_latent_heat = 225*1000  !J/kg VALUE INCORRECT, USING APPROX
+  PCM_s_k         = 0.25      !W/m-K
+  PCM_s_cp        = 2.47*1000 !J/kg-K
+  PCM_s_dens      = 890       !kg/m^3
+  PCM_l_k         = 0.15      !W/m-K
+  PCM_l_cp        = 2.71*1000 !J/kg-K
+  PCM_l_dens      = 810       !kg/m^3
+  PCM_Mushy_Zone  = 1
+*elseif,PCM,EQ,3,THEN
+  !PCM: Indalloy 136
+  PCM_text='Indialloy_136'
+  PCM_Melt_Temp   = 58         !C
+  PCM_latent_heat = 28.9*1000  !J/kg VALUE INCORRECT, USING APPROX
+  PCM_s_k         = 10         !W/m-K
+  PCM_s_cp        = 0.167*1000 !J/kg-K
+  PCM_s_dens      = 9010       !kg/m^3
+  PCM_l_k         = PCM_s_k    !W/m-K
+  PCM_l_cp        = 0.201*1000 !J/kg-K
+  PCM_l_dens      = PCM_s_dens !kg/m^3
+  PCM_Mushy_Zone  = 1
+*elseif,PCM,EQ,4,THEN
+  !PCM: PT29
+  PCM_text='PT29'
+  PCM_Melt_Temp   = 29        !C
+  PCM_latent_heat = 202*1000  !J/kg VALUE INCORRECT, USING APPROX
+  PCM_s_k         = 0.25      !W/m-K
+  PCM_s_cp        = 1.77*1000 !J/kg-K
+  PCM_s_dens      = 940       !kg/m^3
+  PCM_l_k         = 0.15      !W/m-K
+  PCM_l_cp        = 1.94*1000 !J/kg-K
+  PCM_l_dens      = 850       !kg/m^3
+  PCM_Mushy_Zone  = 1
+*elseif,PCM,EQ,5,THEN
+  !PCM: Ga
+  PCM_text='Ga'
+  PCM_Melt_Temp   = 29.7646+273.13        !K
+  PCM_latent_heat = 5590/69.723*1000  !J/mol / (g/mol) *kg/g VALUE INCORRECT, USING APPROX
+  PCM_s_k         = 40.6/pscl      !W/m-K
+  PCM_s_cp        = 370        !J/kg-K
+  PCM_s_dens      = 5910/((pscl)**3)      !kg/m^3
+  PCM_l_k         = 33/pscl      !W/m-K
+  PCM_l_cp        = 330      !J/kg-K
+  PCM_l_dens      = 6095/((pscl)**3)       !kg/m^3
+  PCM_Mushy_Zone  = .2
+*elseif,PCM,EQ,0,THEN
+  !PCM: Substrate
+  PCM_text='Substrate_no_temp_dep'
+*else
+  *go,:ENDPROGRAM
+*endif
+
+T_init = PCM_Melt_Temp-3/4*PCM_Mushy_Zone/2		!Kelvin you dummy! TE needs absolute temp.
+coldplate_temp = T_init+2
+ST= T_init*30e-6	!derived- thermovoltage... Tm+DeltaS
+
+*if,PCM,ne,0,THEN
+
+  !Temp dependence
+  T1 = 0 !PCM_Melt_Temp-20 
+  T2 = PCM_Melt_Temp-PCM_Mushy_Zone/2
+  T3 = PCM_Melt_Temp+PCM_Mushy_Zone/2
+  T4 = PCM_Melt_Temp+200  !PCM_Melt_Temp+10
+
+  !Setup enthalpy
+  E1 = 0 
+  E2 = PCM_s_cp*PCM_s_dens*(T2-T1)
+  E3 = E2+PCM_Latent_heat*(PCM_s_dens+PCM_l_dens)/2+(PCM_s_cp*PCM_s_dens+PCM_l_cp*PCM_l_dens)*(T3-T2)/2
+  E4 = E3+PCM_l_cp*PCM_l_dens*(T4-T3)
+*endif
+
+!Material #3: PCMcorner of Co fin and Co base
+*if,PCM,EQ,0,THEN
+  mp, kxx,  3, subs_k
+  mp, c,    3, subs_cp
+  mp, dens, 3, subs_dens
+*else
+
+*if,trilinear,eq,1,THEN
+  MPTEMP,          1, T1,              T2,              T3,              T4
+  MPDATA, ENTH, 3, 1, E1,              E2,              E3,              E4
+  MPDATA, KXX,  3, 1, PCM_s_k,         PCM_s_k,         PCM_l_k,         PCM_l_k
+  MPDATA, DENS, 3, 1, PCM_s_Dens, 	PCM_s_Dens,	PCM_l_dens, 	PCM_l_dens
+  MPDATA, RSVX, 3, 1, res_ga, 		res_ga, 	res_ga, 	res_ga
+  MPDATA, SBKX, 3, 1, S_ga, 		S_ga, 		S_ga, 		S_ga
+*else
+
+
+*DIM,t_intrp,array,tanh_pts,1
+*DIM,tanh_intrp,array,tanh_pts,1
+*DIM,cp_intrp,array,tanh_pts,1
+*VLEN,tanh_pts
+*VFILL,t_intrp,RAMP,-4,8/(tanh_pts-1)
+*DO,ind,1,tanh_pts,1
+tanh_intrp(ind)=(tanh(t_intrp(ind))+1)/2
+cp_intrp(ind)=(PCM_s_dens*PCM_s_cp*t_intrp(ind)<0)+(PCM_l_dens*PCM_l_cp*t_intrp(ind)>0)
+!make bilinear rho*cp*dt
+*ENDDO
+!STDDEV of d(tanh(x))/dx is 0.9.  
+*VFACT,PCM_Mushy_Zone/(2*4)  !scale the -4,4 domain to the width of mushy zone
+*VFUN,t_intrp,COPY,t_intrp
+*VFACT,PCM_Mushy_Zone/(2*4)  !scale the -4,4 "range"to the width of mushy zone
+*VFUN,cp_intrp,COPY,cp_intrp
+
+
+  MPTEMP,          1, T1,                            
+  MPDATA, ENTH, 3, 1, E1,                           
+  MPDATA, KXX,  3, 1, PCM_s_k,                  
+  MPDATA, DENS, 3, 1, PCM_s_Dens, 		
+  MPDATA, RSVX, 3, 1, res_ga, 			
+  MPDATA, SBKX, 3, 1, S_ga, 			
+
+PCM_LV=(PCM_s_dens+PCM_l_dens)/2*PCM_Latent_heat
+*DO,ind,1,tanh_pts,1
+  MPTEMP,          , PCM_Melt_Temp+t_intrp(ind)
+  MPDATA, ENTH, 3, , E2+PCM_LV*tanh_intrp(ind)+cp_intrp(ind)+PCM_Mushy_Zone/2*PCM_s_dens*PCM_s_cp
+  MPDATA, KXX,  3, , PCM_s_k+(PCM_l_k-PCM_s_k)*tanh_intrp(ind)
+  MPDATA, DENS, 3, , PCM_s_Dens+(PCM_l_dens-PCM_s_dens)*tanh_intrp(ind)
+  MPDATA, RSVX, 3, , res_ga
+  MPDATA, SBKX, 3, , S_ga
+*ENDDO
+
+  MPTEMP,          ,            T4
+  MPDATA, ENTH, 3, ,            E4
+  MPDATA, KXX,  3, ,         	PCM_l_k
+  MPDATA, DENS, 3, ,  		PCM_l_dens
+  MPDATA, RSVX, 3, ,  		res_ga
+  MPDATA, SBKX, 3, ,		S_ga
+
+
+*endif
+
+*endif
+
+
+!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+!Solve TEC equations to specify variable film resistance
+
+alpha=res_Ga/res_Co
+
+!compute wtR
+*if,phi_over,EQ,0,THEN  !use optimal fill
+  phi=1/(1+sqrt(1/alpha))
+  wtR=(sqrt(res_Ga)+sqrt(res_Co))**2
+*elseif,phi_over,EQ,1		!override and use custom phi_over
+  wtR=res_Ga/phi+res_Co/(1-phi)
+*else
+  *END  !error
+*endif
+
+M=ST*w_t/(L**2*j0*wtR)   !solution shapefactor
+q_predict=ST*j0*L/w_t*sqrt(M/(M+1))*pscl*pscl
+end_time_calc=PCM_l_dens*PCM_Latent_heat*w_t*phi/(ST*j0)
+
+!use phi to set couple widths and define keypoints
+w_Ga=w_t*phi
+w_Co=w_t*(1-phi)
+x_Co=-1*(w_Co+w_f/2)
+x_Ga=(w_Ga+w_f/2)
+
+! THESE ARE REFERENCED TO THE TOP OF THE COUPLE!!
+! F=M*(1+z**2/M)**(1/2)-M
+! Fpr=z*(1+z**2/M)**(-1/2)
+! J=(1+z**2/M)**(-3/2)
+! Jpr=-3*z/M*(1+z**2/M)**(-5/2)
+
+delta=(L)/grade_pnts
+dz=1/grade_pnts		!dimensionless delta
+z=dz/2		!initial eval point
+!profile is wtR/(w_t*w_f)*L**2*F/J
+dim_fac=wtR/(w_t*w_f)*L**2
+
+*dim,igzo1,array,grade_pnts !ARRAY
+*do,ind,1,grade_pnts,1 !DO LOOP
+!set resistivity using z evaluated in center of grade subvolume
+  F=M*(1+z**2/M)**(1/2)-M
+  J=(1+z**2/M)**(-3/2)
+  igzo1(ind)=dim_fac*F/J
+  z=z+dz
+*enddo
+
+*vplot,,igzo1
+
+!Put Rad_cu stuff here?
+  
+!determine boundary voltages to use, runtime
+z=1
+F=M*(1+z**2/M)**(1/2)-M
+
+V1=-L**2*j0*res_Co/w_Co*F
+V2=L**2*j0*res_Ga/w_Ga*F
+
+tc=PCM_Latent_heat*(PCM_l_dens+PCM_s_dens)/2*w_t*phi/(j0*ST)
+
+mp,kxx,1,k_cu
+mp,c,1,cp_cu
+mp,dens,1,dens_cu
+mp,rsvx,1,res_cu
+mp,sbkx,1,S_cu
+
+mp,kxx,2,k_sin
+mp,c,2,k_sin
+mp,dens,2,k_sin
+mp,rsvx,2,res_sin
+mp,sbkx,2,S_sin
+
+mp,kxx,4,k_Co
+mp,c,4,cp_Co
+mp,dens,4,dens_Co
+mp,rsvx,4,res_Co
+mp,sbkx,4,S_Co
+
+mp,kxx,5,k_ctc
+mp,c,5,cp_ctc
+mp,dens,5,dens_ctc
+mp,rsvx,5,res_ctc
+mp,sbkx,5,S_ctc
+
+mp,kxx,6,k_igzo
+mp,c,6,cp_igzo
+mp,dens,6,dens_igzo
+mp,rsvx,6,res_igzo_high
+mp,sbkx,6,S_igzo
+
+!BUILD GEOMETRY =====================================================================================
+RECTNG,x_Co,x_Ga,-t_spreader-w_ox,-w_ox	!copper spreader
+AATT,1,,1  	!can attach here, others lost to glue
+
+RECTNG,x_Co,x_Ga,-w_ox,0	!hard oxide base
+
+asel,none
+RECTNG,x_Co,-w_f/2,0,L+L_standoff   !Co leg
+CM,legs,areas
+
+
+*if,L_standoff,GT,0,THEN
+RECTNG,-w_f/2,w_f/2,0,L_standoff   !hard_ox standoff leg
+*endif
+
+
+RECTNG,-w_f/2,w_f/2,L_standoff,L_standoff+L  !IZGO
+
+asel,none
+RECTNG,w_f/2,x_Ga,0,L+L_standoff   !Ga leg
+CMSEL,a,legs
+CM,legs,areas
+
+asel,none
+CYL4,x_Co,L_cj+Rad_cj,Rad_cj
+CYL4,x_Ga,L_cj+Rad_cj,Rad_cj
+CM,circs,areas
+
+CMSEL,a,legs
+ASBA,legs,circs,,delete,delete
+CM,legs,areas
+
+!Define spline KP
+NUMOFF,KP,4
+NUMOFF,line,4
+K,1,x_Co+t_cu1/2,L_cj+Rad_cj
+K,2,x_Co+t_cu1/2,t_cu2
+K,3,-w_f/2,t_cu2
+lsel,none
+L,1,2
+L,2,3
+LFILLT,1,2,Rad_cu
+LCOMB,1,3,0
+LCOMB,1,2,0
+
+ksel,none
+NUMOFF,KP,5
+NUMOFF,line,4
+K,1,x_Ga-t_cu1/2,L_cj+Rad_cj
+K,2,x_Ga-t_cu1/2,t_cu2
+K,3,w_f/2,t_cu2
+lsel,none
+L,1,2
+L,2,3
+LFILLT,1,2,Rad_cu
+LCOMB,1,3,0
+LCOMB,1,2,0   !line 1 now inside Ga
+	      !line 5 now inside Co
+lsel,s,line,,1,5
+CMSEL,s,legs
+ASBL,all,all,,delete,delete
+
+!Build OXIDE Areas
+ang_div_l=Rad_cj*3.14159/ang_div
+lsel,none
+numoff,line,2
+ksel,all
+L,KP(x_Co,L_cj+Rad_cj*2,0),KP(x_Co,L_cj,0),,ang_div_l
+LSEL,a,radius,,Rad_cj
+LESIZE,all,ang_div_l
+LSEL,r,loc,x,x_Co,0
+AL,all
+
+LSEL,none
+L,KP(x_Ga,L_cj+Rad_cj*2,0),KP(x_Ga,L_cj,0),,ang_div_l
+LESIZE,all,ang_div_l
+LSEL,a,radius,,Rad_cj
+LSEL,r,loc,x,0,x_Ga
+AL,all
+
+ASEL,all
+AGLUE,all
+
+
+
+
+!----------Attach materials--------------------
+
+ASEL,s,loc,y,-w_ox,0
+AATT,2,,1
+CM,oxide,areas
+
+ASEL,s,loc,x,-w_f/2,w_f/2
+ASEL,u,loc,y,-t_spreader-w_ox,0
+CM,interface,areas
+*if,L_standoff,EQ,0,THEN  !just IGZO
+  AATT,6,,1
+*else
+  ASEL,r,loc,y,0,L_standoff
+  AATT,2,,1
+  CMSEL,s,interface
+  ASEL,r,loc,y,L_standoff,L+L_standoff
+  AATT,6,,1
+*endif
+
+asel,s,loc,y,(L+L_standoff)/2
+ASEL,r,loc,x,x_Co,-w_f/2
+AATT,4,,1			!attach Cobalt
+
+asel,s,loc,y,(L+L_standoff)/2
+ASEL,r,loc,x,w_f/2,x_Ga
+AATT,3,,1			!attach Gallium
+
+
+!Split side lines to have fine mesh near radius
+lsel,s,loc,x,x_Ga
+lsel,a,loc,x,x_Co
+lsel,r,loc,y,L_cj+Rad_cj*2,L+L_standoff
+LREVERSE,all
+LDIV,all,2*Rad_cj/(L+L_standoff-L_cj-2*Rad_cj),,,0
+CM,leg_bdry,lines
+w_min=(w_Ga<w_Co)
+lsel,r,length,,3*Rad_cj,2*L
+leg_esize=w_min/leg_lsize
+lesize,all,leg_esize		!uni lesize long line
+
+lsel,s,loc,y,-(t_spreader+w_ox)	!lesize bottom of spreader at boundary
+lesize,all,leg_esize
+
+LSEL,s,radius,,Rad_cj		!lesize the curved edge term
+lesize,all,,180/ang_div
+
+
+CMSEL,s,leg_bdry		!span from edge term to uni
+LEsize,all,sqrt(ang_div_l*leg_esize),,,leg_esize/ang_div_l 
+
+ASEL,s,loc,y,L_cj+Rad_cj	!attach oxide to edge term
+AATT,2,,1
+CMSEL,a,oxide
+CM,oxide,areas
+
+ASEL,s,mat,,0
+AATT,1,,1			!attach cu contact
+CM,contacts,areas
+
+!!MESH
+CMSEL,s,interface
+LSLA,s
+LSEL,r,TAN1,y,0  !select horizontals
+LESize,all,,,int_lsize
+
+CMSEL,s,oxide
+asel,r,loc,y,-w_ox,0
+LSLA,s
+LSEL,r,TAN1,x,0  !select verticals
+LESize,all,,,2
+
+CMSEL,s,contacts
+lsla,s
+LSEL,r,loc,x,x_Ga !Right Contact
+!DL,all,,VOLT,V2
+CM,rctc,lines
+
+CMSEL,s,contacts
+lsla,s
+LSEL,r,loc,x,x_Co !Left Contact
+!DL,all,,VOLT,V1
+CM,lctc,lines
+CMSEL,a,rctc
+LESize,all,,,numel_ctc,space_ctc
+
+lsel,s,loc,x,x_Ga
+lsel,r,ndiv,,0
+LREVERSE,all
+lsel,a,loc,x,x_Co
+  !copper base is only one left, want first ele to be w_ox, 
+  !and last to be w_min/leg_lsize 
+LEsize,all,sqrt(w_ox*leg_esize),,,leg_esize/w_ox  
+
+allsel,all
+
+asel,s,mat,,2
+asel,r,loc,x,-w_ox/2,w_ox/2
+lsla,s
+lsel,r,loc,y,0,t_cu2
+lesize,all,,,int_lsize
+asel,s,mat,,2
+asel,r,loc,x,-w_ox/2,w_ox/2
+lsla,s
+lesize,all,leg_esize
+lsel,u,tan1,y,0
+lsel,r,loc,x,-w_ox/2
+LCCAT,all
+
+asel,s,mat,,2
+asel,r,loc,x,-w_ox/2,w_ox/2
+lsla,s
+lsel,u,tan1,y,0
+lsel,r,loc,x,w_ox/2
+LCCAT,all
+smrtsize,off
+amesh,all
+
+asel,s,mat,,6
+lsla,s
+lesize,all,leg_esize
+amesh,all
+
+asel,s,loc,y,-w_ox,0
+lsla,s
+lesize,all,leg_esize
+lsel,r,loc,y,0
+LCCAT,all
+
+lsel,s,loc,y,-w_ox
+LDIV,all,w_Ga/(w_f+w_t)
+lsel,r,loc,x,x_Co,0
+LDIV,all,w_f/(w_f+w_Co)
+lsel,r,loc,x,-w_f/2,w_f/2
+LESIZE,all,,,int_lsize
+lsel,s,loc,y,-w_ox
+LESIZE,all,leg_esize
+LCCAT,all
+amesh,all
+
+cmsel,s,contacts
+lsla,s
+lsel,r,ndiv,,0
+lsel,r,loc,x,x_Co,0
+*get,divlen,LINE,LSNEXT(1),leng
+numlen=(w_Co-t_cu1/2-Rad_cu)     !horizontal part of contact
+LDIV,all,(divlen-numlen)/divlen
+
+cmsel,s,contacts
+lsla,s
+lsel,r,ndiv,,0
+lsel,r,loc,x,0,x_Ga
+*get,divlen,LINE,LSNEXT(1),leng
+numlen=(w_Ga-t_cu1/2-Rad_cu)     !horizontal part of contact
+LDIV,all,(numlen)/divlen
+
+lsel,s,loc,y,t_cu2
+lesize,all,leg_esize
+
+/nerr,0,,,,0  !number of allowed displayed errors per command
+/uis,msgpop,3 !do not terminate input upon first error
+
+
+!SMRTSIZE, SIZLVL, FAC, EXPND, TRANS, ANGL, ANGH, GRATIO, SMHLC, SMANC, MXITR, SPRX
+smrtsize,,1.05,1.05,1.05
+amesh,all
+
+allsel,all
+smrtsize,7
+amesh,all  !this was giving trouble
+
+
+
+!SET GRADED RESIST
+esel,s,mat,,6
+count=1
+loc_y1=L_standoff+L  !Top of couple, where res is close to zero
+
+!start at top and work way down to y=L_standoff
+*do,cnt_y,1,grade_pnts !LOOP along grade points
+loc_y2=loc_y1-delta
+esel,r,cent,y,loc_y2,loc_y1
+
+mp,kxx,6+count,k_igzo
+mp,c,6+count,cp_igzo
+mp,dens,6+count,dens_igzo
+mp,rsvx,6+count,igzo1(count)
+mp,sbkx,6+count,S_igzo
+
+emodif,all,mat,count+6 !MODIFY ELEMENT ATTRIBUTES TO CURRENT MATERIAL
+count=count+1 !INCREMENT COUNTER
+
+loc_y1=loc_y2
+esel,s,mat,,6
+
+
+*enddo
+
+
+allsel,all
+finish
+
+*Go,:TRANSOL
+
+!STATIC SOL +++++++++++++++++++++++++++++++++++++++++
+/solu
+lsclear, lsopt, 
+lsclear,all
+ddele,all,all
+fdele,all,all
+antype,0,new
+
+lsel,s,loc,y,-w_ox-t_spreader
+lsel,a,loc,y,L+L_standoff
+DL,all,,TEMP,T_init
+
+lsel,s,loc,y,L+L_standoff
+DL,all,,TEMP,T_init
+
+CMSEL,s,rctc
+DL,all,,VOLT,V2
+
+CMSEL,s,lctc
+DL,all,,VOLT,V1
+
+
+!TIE TEMPS ON EACH SIDE TO CREATE LINEAR PERIODICITY
+nsel,s,loc,x,x_Co-1e-11,x_Co
+*vget,left_nodes,NODE,,NLIST
+*VSCFUN,num_left,LAST,left_nodes
+*do,ind,1,num_left		!loop through left nodes
+NSEL,all
+NSEL,r,node,,NODE(x_Ga,NY(left_nodes(ind)),0)  !NODE() only selects from current
+NSEL,a,node,,left_nodes(ind)
+CP,next,TEMP,all
+*enddo
+
+allsel,all
+
+solve
+save
+
+
+!Solution ####################################################################################
+:TRANSOL
+/solu
+lsclear, lsopt, 
+lsclear,all
+ddele,all,all
+fdele,all,all
+  
+antype, 4, new
+TREF,T_init
+tunif, T_init        !Initial temperature of all nodes
+!cnvtol,HEAT,,.001,2,6e-5*(scl/pscl)   !CNVTOL, Lab, VALUE, TOLER, NORM, MINREF 
+cnvtol,AMPS,,.001,2,1e-10*(scl/pscl)
+
+
+outres, all, all
+kbc, 1 			!Stepped loads=1
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!! PLAY WITH THESE TO GET CONVERGENCE!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+    AUTOTS, 1
+
+    deltim, 1e-9,1e-9,3e-2
+    
+    *if,end_time,eq,0,THEN
+    deltim, 1e-9,1e-9,3e-2
+    time,end_time
+    *else
+    end_time=end_time_calc*end_time_fac
+    time,end_time
+    deltim, 1e-9,1e-9,end_time/2
+    *endif
+
+    !lnsrch, off
+    
+    CUTCONTROL,cutbackfactor,.25 	!changes non-converging timestep cutback from default of 1/2
+    
+    lnsrch, ON !let ansys use line search with N-R as needed to improve convergence
+    TIMINT,1
+    TINTP, ,0.25250625,0.505,1, , ,
+    neqit,50
+    
+
+    allsel,all
+    !lswrite,1
+
+
+
+!TIE TEMPS ON EACH SIDE TO CREATE LINEAR PERIODICITY
+nsel,s,loc,x,x_Co-1e-11,x_Co
+*vget,left_nodes,NODE,,NLIST
+*VSCFUN,num_left,LAST,left_nodes
+*do,ind,1,num_left		!loop through left nodes
+NSEL,all
+NSEL,r,node,,NODE(x_Ga,NY(left_nodes(ind)),0)  !NODE() only selects from current
+NSEL,a,node,,left_nodes(ind)
+CP,next,TEMP,all
+*enddo
+
+
+CMSEL,s,rctc
+DL,all,,VOLT,V2
+
+CMSEL,s,lctc
+DL,all,,VOLT,V1
+
+LSEL,s,loc,y,-w_ox-t_spreader-1e-10,-w_ox-t_spreader+1e-10
+DL,all,,TEMP,coldplate_temp
+
+
+
+allsel,all
+tunif, T_init
+solve
+
+save
+finish
+
+*Go,:BASEPATH
+
+!!@@@@@@@@@@@@@@@@@
+:POST
+/Post1
+
+PATH,iface,2,6,500
+PPATH,1,,0,0,0
+PPATH,2,,0,L_standoff+L,0
+PDEF,Jf,JC,X
+PLPATH,YG,Jf
+
+PATH,Rctc,2,10,500
+PPATH,1,,x_Ga,0,0
+PPATH,2,,x_Ga,L_cj,0
+PDEF,JfR,JC,X
+PLPATH,YG,JfR
+PCALC,INTG,I_R,JfR,S,1/L_cj	
+PDEF,TfR,TF,X
+PLPATH,YG,TfR
+
+
+PATH,Lctc,2,5,3000
+PPATH,1,,x_Co,-1*(w_ox+T_spreader),0
+PPATH,2,,x_Co,L+L_standoff,0
+PDEF,TfL,TF,y
+PLPATH,YG,TfL
+PAGET,ifLpts,POINTS
+PAGET,ifLdata,TABLE
+
+PATH,Rctc,2,5,3000
+PPATH,1,,x_Ga,-1*(w_ox+T_spreader),0
+PPATH,2,,x_Ga,L+L_standoff,0
+PDEF,TfR,TF,y
+PLPATH,YG,TfR
+PAGET,ifRpts,POINTS
+PAGET,ifRdata,TABLE
+PLPATH,YG,Tfr
+
+*DIM,netTF,array,3000
+*VOPER,netTF(1),ifLdata(1,5),sub,ifRdata(1,5),
+*VPLOT,ifLdata(2,2),netTF(2),
+
+
+PATH,Lctc,2,10,500
+PPATH,1,,x_Co,0,0
+PPATH,2,,x_Co,L_cj,0
+PDEF,JfL,JC,X
+PLPATH,YG,JfL
+PCALC,INTG,I_L,JfL,S,1/L_cj	
+PDEF,TfL,TF,X
+PLPATH,YG,TfL
+
+
+
+PATH,ifacel,2,6,500
+PPATH,1,,-(w_f/2+1e-9),L_standoff,0
+PPATH,2,,-(w_f/2+1e-9),L_standoff+L,0
+PDEF,Tfl,TF,X
+PAGET,ifLpts,POINTS
+PAGET,ifLdata,TABLE
+!(:,2) are ylocs, (:,4) are s, (:,5) is heat flux.
+PLPATH,YG,Tfl
+
+PATH,ifacer,2,6,500
+PPATH,1,,(w_f/2+1e-9),L_standoff,0
+PPATH,2,,(w_f/2+1e-9),L_standoff+L,0
+PDEF,Tfr,TF,X
+PAGET,ifRpts,POINTS
+PAGET,ifRdata,TABLE
+PLPATH,YG,Tfr
+
+*DIM,netTF,array,500
+*VOPER,netTF(1),ifLdata(1,5),ADD,ifRdata,-1
+*VPLOT,ifLdata(2,2),netTF(2),
+
+
+:BASEPATH
+/POST1
+PATH,base,2,6,30
+PPATH,1,,x_Co,-t_spreader-w_ox,0
+PPATH,2,,x_Ga,-t_spreader-w_ox,0
+
+
+SET,last
+*GET,numsteps,ACTIVE,0,SET,SBST
+*DIM,fluxes,,%numsteps%,1
+*DIM,time,,%numsteps%,1
+!*DIM,temps,TABLE,%numsteps%,3,
+
+
+*DO,i,1,%numsteps%
+
+SET,next
+*GET,step_time,ACTIVE,0,SET,TIME
+
+PDEF,base_flux,TF,Y
+PCALC,INTG,b_TFYavg,base_flux,S,2/(x_Ga-x_Co)		!integrate centerline temperature wrt to distance, and divide by path length 5e-3
+*GET,b_TF,PATH,0,LAST,b_TFYavg
+
+time(i)=step_time
+fluxes(i)=b_TF
+
+*ENDDO
+
+/GROPT,logx,1
+/GROPT,logy,1
+*VPLOT,time,fluxes
+
+
+:JUMP
+amp_title=j0/1e6*1e6
+ *cfopen,TEC_res2deg_%amp_title%Apm2_p2mush_scled,csv,
+      *DO,JJ,1,numsteps
+      tTime=time(JJ)
+      tflux=fluxes(JJ)*pscl*pscl
+      !tTemp2=center_avg(JJ)
+      !tTemp3=centroid(JJ)
+      *VWRITE,tTime, tflux
+      %15.5e, %15.5e
+    *ENDDO
+  *cfclos
